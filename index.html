@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>皇鼎師傅出勤</title>
+<meta name="theme-color" content="#1d4f7a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="師傅出勤">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: one-column phone app — date/site header, worker roster with big tap targets, fixed bottom tab bar. */
+:root{
+  --bg:#eceeed;--surface:#ffffff;--sunk:#f4f6f5;--ink:#1a2220;--muted:#5b6663;--line:#d3d9d6;
+  --accent:#1d4f7a;--accent-ink:#ffffff;--accent-soft:#dce7f1;
+  --amber:#a85a00;--amber-soft:#fbecd6;--danger:#b3261e;--danger-soft:#fbe3e1;
+  --line-green:#06c755;
+  --shadow:0 1px 2px rgba(20,30,28,.06),0 4px 16px rgba(20,30,28,.06);
+  --f-body:"PingFang TC","Noto Sans TC","Microsoft JhengHei","Heiti TC",system-ui,sans-serif;
+  --f-num:"Barlow Condensed","Arial Narrow",var(--f-body);
+  --tabbar:64px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#111514;--surface:#1a201f;--sunk:#151a19;--ink:#e5ebe9;--muted:#93a09c;--line:#2b3432;
+  --accent:#6ea8da;--accent-ink:#0b1824;--accent-soft:#1b2f42;--amber:#f0a33a;--amber-soft:#3a2a12;
+  --danger:#f2766d;--danger-soft:#3b1a18;--shadow:0 1px 2px rgba(0,0,0,.3);color-scheme:dark}}
+
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink);margin:0}
+body{font-family:var(--f-body);font-size:15px;line-height:1.5;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+
+.wrap{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-top:calc(12px + env(safe-area-inset-top,0px));padding-bottom:calc(var(--tabbar) + 32px + env(safe-area-inset-bottom,0px))}
+
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-block:8px 12px}
+.top h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.04em}
+.top h1 small{display:block;font-size:11px;font-weight:600;letter-spacing:.2em;color:var(--muted)}
+
+.banner{border-radius:10px;padding:10px 12px;font-size:13px;margin-block:0 12px;background:var(--amber-soft);color:var(--ink);border:1px solid color-mix(in srgb,var(--amber) 35%,transparent);display:flex;flex-direction:column;gap:8px}
+.banner.err{background:var(--danger-soft);border-color:color-mix(in srgb,var(--danger) 35%,transparent)}
+.banner a{color:var(--accent);font-weight:700}
+
+.view{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.label{font-size:12px;font-weight:600;letter-spacing:.12em;color:var(--muted)}
+.row{display:flex;align-items:center;gap:8px}
+.sp{flex:1}
+
+.datebar,.monthbar{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:6px;padding:6px}
+.iconbtn{width:44px;height:44px;border-radius:10px;border:0;background:transparent;display:grid;place-items:center;color:var(--ink)}
+.iconbtn:active{background:var(--sunk)}
+.iconbtn svg{width:22px;height:22px}
+.datepick{position:relative;text-align:center;padding:4px 0;border-radius:10px}
+.datepick .d{font-size:30px;font-weight:700;line-height:1.05}
+.datepick .w{font-size:13px;color:var(--muted)}
+.datepick input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.todaychip{display:inline-block;margin-left:6px;font-size:11px;padding:1px 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-weight:600;vertical-align:2px}
+.monthbar .m{text-align:center;font-size:22px;font-weight:700}
+
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:none;margin-inline:-2px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1.5px solid var(--line);background:var(--surface);border-radius:12px;padding:9px 14px;min-height:44px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.chip .cnt{font-family:var(--f-num);font-size:15px;color:var(--muted);font-weight:600}
+.chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
+.chip[aria-pressed="true"] .cnt{color:var(--accent-ink);opacity:.8}
+.chip.add{border-style:dashed;color:var(--accent);background:transparent}
+
+.roster{overflow:hidden}
+.roster-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.roster-head h2{margin:0;font-size:16px;min-width:0;overflow-wrap:anywhere}
+.linkbtn{border:0;background:none;color:var(--accent);font-weight:600;font-size:13px;padding:8px 4px;min-height:36px;white-space:nowrap}
+.wrow{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.wrow:last-child{border-bottom:0}
+.wrow.on{background:color-mix(in srgb,var(--accent-soft) 45%,var(--surface))}
+.wtop{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.wname{font-size:17px;font-weight:700;min-width:0;flex:1}
+.wname .hint{display:block;font-size:12px;font-weight:500;color:var(--amber)}
+.seg{display:inline-flex;background:var(--sunk);border:1px solid var(--line);border-radius:11px;padding:3px;gap:3px}
+.seg button{border:0;background:transparent;border-radius:8px;min-width:54px;min-height:40px;padding:0 10px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.seg button.full[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.seg button.half[aria-pressed="true"]{background:var(--amber-soft);color:var(--amber);box-shadow:inset 0 0 0 1.5px var(--amber)}
+.ot{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.stepper button{width:44px;height:38px;border:0;background:transparent;font-size:20px;line-height:1;color:var(--ink)}
+.stepper button:disabled{opacity:.3}
+.stepper .v{min-width:56px;text-align:center;font-size:19px;font-weight:600;color:var(--ink)}
+.stepper .v.has{color:var(--amber)}
+
+.daysum .grp{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px;width:100%;text-align:left;border-left:0;border-right:0;border-top:0;background:transparent}
+.daysum .grp:last-of-type{border-bottom:0}
+.grp-h{display:flex;align-items:baseline;gap:8px}
+.grp-h b{font-size:15px;min-width:0;overflow-wrap:anywhere}
+.grp-h .tot{margin-left:auto;font-size:20px;font-weight:700}
+.grp-h .tot small{font-family:var(--f-body);font-size:12px;font-weight:500;color:var(--muted);margin-left:2px}
+.names{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:13px;padding:2px 8px;border-radius:7px;background:var(--sunk);border:1px solid var(--line);white-space:nowrap}
+.tag.half{background:var(--amber-soft);border-color:transparent;color:var(--amber)}
+.tag i{font-style:normal;color:var(--amber);font-weight:600;margin-left:3px}
+.share{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line);background:var(--sunk);border-radius:0 0 14px 14px}
+.btn.line{background:var(--line-green);color:#fff;flex:1;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn.line svg{width:22px;height:22px}
+
+.empty{padding:28px 18px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--muted)}
+.empty b{color:var(--ink);font-size:16px}
+
+.btn{border:0;border-radius:11px;min-height:46px;padding:0 18px;font-weight:700;font-size:15px}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent)}
+.btn.solid-danger{background:var(--danger);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.list .item{display:flex;align-items:center;gap:12px;padding:13px 14px;border:0;border-bottom:1px solid var(--line);background:transparent;width:100%;text-align:left;min-height:60px}
+.list .item:last-child{border-bottom:0}
+.list .item:active{background:var(--sunk)}
+.avatar{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-weight:700;background:var(--accent-soft);color:var(--accent);flex:none}
+.item .main{flex:1;min-width:0}
+.item .t{font-weight:700;font-size:16px;overflow-wrap:anywhere;display:block}
+.item .s{font-size:13px;color:var(--muted);overflow-wrap:anywhere;display:block}
+.pill{font-size:12px;font-weight:600;padding:2px 9px;border-radius:99px;white-space:nowrap}
+.pill.go{background:var(--accent-soft);color:var(--accent)}
+.pill.off{background:var(--sunk);color:var(--muted);border:1px solid var(--line)}
+.item.dim .t,.item.dim .avatar{opacity:.55}
+.chev{color:var(--muted);flex:none;transition:transform .15s}
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.toolbar h2{margin:0;font-size:18px}
+
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi{padding:12px;display:flex;flex-direction:column;gap:2px}
+.kpi .v{font-size:30px;font-weight:700;line-height:1}
+.kpi .v small{font-family:var(--f-body);font-size:12px;font-weight:500;color:var(--muted);margin-left:2px}
+.kpi .k{font-size:12px;color:var(--muted)}
+.kpi.ot .v{color:var(--amber)}
+details.st{border-bottom:1px solid var(--line)}
+details.st:last-child{border-bottom:0}
+details.st summary{list-style:none;display:flex;align-items:center;gap:12px;padding:13px 14px;cursor:pointer}
+details.st summary::-webkit-details-marker{display:none}
+details.st summary .main{flex:1;min-width:0}
+details.st summary .t{font-weight:700;font-size:16px;overflow-wrap:anywhere;display:block}
+details.st summary .s{font-size:13px;color:var(--muted);display:block}
+details.st summary .big{font-size:28px;font-weight:700;line-height:1;text-align:right}
+details.st summary .big small{display:block;font-family:var(--f-body);font-size:11px;font-weight:500;color:var(--muted)}
+details.st[open] summary .chev{transform:rotate(90deg)}
+.sub{padding:0 14px 14px;display:flex;flex-direction:column;gap:10px}
+.subtable{width:100%;border-collapse:collapse;font-size:14px}
+.subtable th{font-size:11px;font-weight:600;letter-spacing:.1em;color:var(--muted);text-align:left;padding:4px 0;border-bottom:1px solid var(--line)}
+.subtable td{padding:7px 0;border-bottom:1px dashed var(--line)}
+.subtable tr:last-child td{border-bottom:0}
+.subtable .r{text-align:right}
+.days{display:flex;flex-wrap:wrap;gap:5px}
+.dchip{padding:3px 7px;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-family:var(--f-num);font-size:14px;font-weight:600}
+.dchip.half{background:var(--amber-soft);color:var(--amber)}
+
+.backup{padding:14px;display:flex;flex-direction:column;gap:10px}
+.backup p{margin:0;font-size:13px;color:var(--muted)}
+.backup .row{flex-wrap:wrap}
+
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surface);border-top:1px solid var(--line);padding:0 max(8px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(8px,env(safe-area-inset-left,0px))}
+.tabs .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);height:var(--tabbar)}
+.tabs button{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;font-weight:600;color:var(--muted)}
+.tabs button svg{width:24px;height:24px}
+.tabs button[aria-current="page"]{color:var(--accent)}
+
+.sheet-back{position:fixed;inset:0;z-index:50;background:rgba(10,16,14,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:18px max(18px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px;max-height:88%;overflow:auto}
+.sheet h2{margin:0;font-size:19px}
+.sheet p{margin:0;color:var(--muted)}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld>span{font-size:13px;font-weight:600;color:var(--muted)}
+.fld input{border:1.5px solid var(--line);border-radius:11px;min-height:48px;padding:0 12px;background:var(--sunk);font-size:16px}
+.fld input:focus{border-color:var(--accent);outline:none;background:var(--surface)}
+.err{color:var(--danger);font-size:13px}
+.sheet-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.preview{white-space:pre-wrap;background:var(--sunk);border:1px solid var(--line);border-radius:11px;padding:12px;font-size:14px;max-height:40vh;overflow:auto;margin:0}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tabbar) + 20px + env(safe-area-inset-bottom,0px));z-index:60;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:600;max-width:calc(100% - 32px);box-shadow:0 8px 24px rgba(0,0,0,.25)}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><h1><small>皇鼎</small>師傅出勤</h1></header>
+  <div id="banners"></div>
+  <section class="view" id="v-log"></section>
+  <section class="view" id="v-workers" hidden></section>
+  <section class="view" id="v-sites" hidden></section>
+  <section class="view" id="v-stats" hidden></section>
+</div>
+
+<nav class="tabs" aria-label="主選單"><div class="in">
+  <button data-tab="log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M9 12.5l2 2 4-4"/></svg>出勤登記</button>
+  <button data-tab="workers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 010 6.4"/><path d="M18 14.8c1.9.7 3.1 2.4 3.5 5.2"/></svg>出勤師傅</button>
+  <button data-tab="sites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M10 21v-5h4v5"/></svg>施工案場</button>
+  <button data-tab="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>月統計</button>
+</div></nav>
+
+<div class="sheet-back" id="sheet" hidden><div class="sheet" role="dialog" aria-modal="true" id="sheet-body"></div></div>
+<div class="toast" id="toast" hidden></div>
+<input type="file" id="restore-file" accept="application/json,.json" hidden>
+
+<script>
+(function(){
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const WD = '日一二三四五六';
+const pad = n => String(n).padStart(2,'0');
+const ymd = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const parseYmd = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); };
+const addMonths = (m, n) => { const [y,mo] = m.split('-').map(Number); const d = new Date(y, mo-1+n, 1); return d.getFullYear()+'-'+pad(d.getMonth()+1); };
+const today = () => ymd(new Date());
+const fmtN = x => (Math.round(x*10)/10).toString();
+const shiftVal = s => s === 'full' ? 1 : s === 'half' ? 0.5 : 0;
+const byName = (a,b) => (a.name||'').localeCompare(b.name||'', 'zh-Hant');
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const CHEV = '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>';
+const LEFT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>';
+const RIGHT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+const LINE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C6.5 3 2 6.6 2 11c0 3.9 3.5 7.2 8.3 7.9.3.1.8.2.9.5.1.3.1.7 0 1l-.1.9c0 .3-.2 1 .9.5s5.9-3.5 8-6c1.4-1.6 2-3.1 2-4.8C22 6.6 17.5 3 12 3zM8.1 13.3H6.2c-.3 0-.5-.2-.5-.5V9c0-.3.2-.5.5-.5s.5.2.5.5v3.3h1.4c.3 0 .5.2.5.5s-.2.5-.5.5zm2 -.5c0 .3-.2.5-.5.5s-.5-.2-.5-.5V9c0-.3.2-.5.5-.5s.5.2.5.5v3.8zm4.6 0c0 .2-.1.4-.3.5h-.2c-.2 0-.3-.1-.4-.2l-2-2.6v2.3c0 .3-.2.5-.5.5s-.5-.2-.5-.5V9c0-.2.1-.4.3-.5h.2c.2 0 .3.1.4.2l2 2.6V9c0-.3.2-.5.5-.5s.5.2.5.5v3.8zm3.1-2.4c.3 0 .5.2.5.5s-.2.5-.5.5h-1.4v.9h1.4c.3 0 .5.2.5.5s-.2.5-.5.5h-1.9c-.3 0-.5-.2-.5-.5V9c0-.3.2-.5.5-.5h1.9c.3 0 .5.2.5.5s-.2.5-.5.5h-1.4v.9h1.4z"/></svg>';
+
+/* ---------- local storage ---------- */
+const KEY = 'hd-attendance-v1', PREF = 'hd-attendance-pref';
+let storageOK = true;
+function load(){
+  try { const raw = localStorage.getItem(KEY); if (raw) { const d = JSON.parse(raw); return { workers: d.workers || [], sites: d.sites || [], att: d.att || {} }; } }
+  catch (e) { storageOK = false; }
+  return { workers: [], sites: [], att: {} };
+}
+function persist(){
+  try { localStorage.setItem(KEY, JSON.stringify(D)); storageOK = true; }
+  catch (e) { storageOK = false; toast('無法儲存到手機，請改用 Safari 或 Chrome 開啟'); }
+}
+const pref = (() => { try { return JSON.parse(localStorage.getItem(PREF)) || {}; } catch (e) { return {}; } })();
+function setPref(k, v){ pref[k] = v; try { localStorage.setItem(PREF, JSON.stringify(pref)); } catch (e) {} }
+
+let D = load();
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+
+const S = {
+  tab: ['log','workers','sites','stats'].includes(pref.tab) ? pref.tab : 'log',
+  date: today(),
+  siteId: pref.site || null,
+  siteFilter: pref.siteFilter || 'active',
+  statMonth: today().slice(0,7),
+  statMode: pref.statMode || 'worker',
+  openKeys: new Set()
+};
+
+const workers = () => D.workers.slice().sort(byName);
+const sites = () => D.sites.slice().sort((a,b) => (a.createdAt||0) - (b.createdAt||0));
+const recs = () => Object.values(D.att);
+const dayRecs = () => recs().filter(r => r.date === S.date);
+const wName = id => (D.workers.find(w => w.id === id) || {}).name || '（已刪除的師傅）';
+const sName = id => (D.sites.find(s => s.id === id) || {}).name || '（已刪除的案場）';
+
+/* ---------- toast & sheet ---------- */
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2400); }
+function openSheet(html){ $('#sheet-body').innerHTML = html; $('#sheet').hidden = false; const f = $('#sheet-body input'); if (f && !f.value) setTimeout(() => f.focus(), 60); }
+function closeSheet(){ $('#sheet').hidden = true; $('#sheet-body').innerHTML = ''; $('#sheet-body').onclick = null; }
+$('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet' || e.target.closest('[data-close]')) closeSheet(); });
+function ask(title, msg, buttons){
+  return new Promise(resolve => {
+    openSheet(`<h2>${esc(title)}</h2><p>${esc(msg)}</p><div class="sheet-actions"><span class="sp"></span>${buttons.map((b,i)=>`<button class="btn ${b.cls||'ghost'}" data-ans="${i}">${esc(b.label)}</button>`).join('')}</div>`);
+    $('#sheet-body').onclick = e => { const b = e.target.closest('[data-ans]'); if (!b) return; const v = buttons[+b.dataset.ans].value; closeSheet(); resolve(v); };
+  });
+}
+
+/* ---------- banners ---------- */
+const inLine = /\bLine\//i.test(navigator.userAgent);
+function externalUrl(){ const u = new URL(location.href); u.searchParams.set('openExternalBrowser', '1'); return u.toString(); }
+function renderBanners(){
+  const b = [];
+  if (inLine) b.push(['err', `你正在 LINE 裡面開啟，資料可能會不見。<a href="${esc(externalUrl())}">改用手機瀏覽器開啟</a>，再「加入主畫面」使用。`]);
+  if (!storageOK) b.push(['err', '這個瀏覽器不允許儲存資料（可能是無痕模式），請改用一般的 Safari 或 Chrome。']);
+  $('#banners').innerHTML = b.map(([c, m]) => `<div class="banner ${c}"><span>${m}</span></div>`).join('');
+}
+
+/* ---------- LINE text ---------- */
+function dayText(){
+  const d = parseYmd(S.date);
+  const rs = dayRecs();
+  const g = new Map();
+  for (const r of rs) { if (!g.has(r.siteId)) g.set(r.siteId, []); g.get(r.siteId).push(r); }
+  const lines = [`【皇鼎出勤】${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}（${WD[d.getDay()]}）`];
+  let tot = 0, ot = 0;
+  for (const [sid, list] of g) {
+    const t = list.reduce((a, r) => a + shiftVal(r.shift), 0); tot += t;
+    lines.push('', `■ ${sName(sid)}（${fmtN(t)} 工）`);
+    list.sort((a, b) => wName(a.workerId).localeCompare(wName(b.workerId), 'zh-Hant'));
+    for (const r of list) { const o = Number(r.ot) || 0; ot += o; lines.push(`・${wName(r.workerId)} ${r.shift === 'half' ? '半天' : '全天'}${o ? ` 加班${fmtN(o)}h` : ''}`); }
+  }
+  lines.push('', `合計 ${fmtN(tot)} 工 / ${rs.length} 人次${ot ? ` / 加班 ${fmtN(ot)}h` : ''}`);
+  return lines.join('\n');
+}
+function shareSheet(){
+  const text = dayText();
+  openSheet(`<h2>傳到 LINE</h2><pre class="preview" id="share-text">${esc(text)}</pre>
+    <div class="sheet-actions"><button class="btn ghost" id="sh-copy">複製文字</button><span class="sp"></span><button class="btn line" id="sh-line">${LINE_ICON}開啟 LINE 傳送</button></div>
+    <p style="font-size:12px">按「開啟 LINE 傳送」後選擇要傳給誰或哪個群組。</p>`);
+  $('#sh-line').onclick = () => { location.href = 'https://line.me/R/share?text=' + encodeURIComponent(text); };
+  $('#sh-copy').onclick = async () => {
+    try { await navigator.clipboard.writeText(text); toast('已複製，可以貼到 LINE'); }
+    catch (e) { const r = document.createRange(); r.selectNodeContents($('#share-text')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('請長按選取的文字複製'); }
+  };
+}
+
+/* ---------- render: log ---------- */
+function renderLog(){
+  const el = $('#v-log');
+  const isToday = S.date === today();
+  const d = parseYmd(S.date);
+  const all = sites();
+  if (S.siteId && !all.some(s => s.id === S.siteId)) S.siteId = null;
+  const dr = dayRecs();
+  const daySiteCount = id => dr.filter(r => r.siteId === id).reduce((a, r) => a + shiftVal(r.shift), 0);
+  const chipSites = all.filter(s => s.status !== 'done' || s.id === S.siteId || dr.some(r => r.siteId === s.id));
+
+  let html = `
+  <div class="card datebar">
+    <button class="iconbtn" id="d-prev" aria-label="前一天">${LEFT}</button>
+    <div class="datepick">
+      <div class="d num">${d.getMonth()+1}/${pad(d.getDate())}</div>
+      <div class="w">${d.getFullYear()} 年 · 星期${WD[d.getDay()]}${isToday ? '<span class="todaychip">今天</span>' : ''}</div>
+      <input type="date" id="d-input" value="${S.date}" aria-label="選擇日期">
+    </div>
+    <button class="iconbtn" id="d-next" aria-label="後一天">${RIGHT}</button>
+  </div>
+  <div class="row"><span class="label">選擇施工案場</span><span class="sp"></span>${!isToday ? '<button class="linkbtn" id="d-today">回到今天</button>' : ''}</div>`;
+
+  if (!chipSites.length) {
+    html += `<div class="card empty"><b>還沒有施工案場</b><span>先新增案場，就能把師傅登記到案場上。</span><button class="btn primary" data-act="add-site">＋ 新增施工案場</button></div>`;
+  } else {
+    html += `<div class="chips" role="group" aria-label="施工案場">${chipSites.map(s => {
+      const c = daySiteCount(s.id);
+      return `<button class="chip" data-site="${esc(s.id)}" aria-pressed="${s.id === S.siteId}">${esc(s.name)}${c ? `<span class="cnt">${fmtN(c)}工</span>` : ''}</button>`;
+    }).join('')}<button class="chip add" data-act="add-site">＋ 案場</button></div>`;
+
+    if (!S.siteId) {
+      html += `<div class="card empty"><b>請先點選上方的施工案場</b><span>再點選今天在這個案場出勤的師傅，點了就自動存好。</span></div>`;
+    } else {
+      const here = new Map(dr.filter(r => r.siteId === S.siteId).map(r => [r.workerId, r]));
+      const list = workers().filter(w => w.status !== 'inactive' || here.has(w.id));
+      if (!list.length) {
+        html += `<div class="card empty"><b>還沒有師傅資料</b><span>先新增師傅名單。</span><button class="btn primary" data-act="add-worker">＋ 新增師傅</button></div>`;
+      } else {
+        html += `<div class="card roster"><div class="roster-head"><h2>${esc(sName(S.siteId))}</h2><span class="label" style="white-space:nowrap">${here.size} 人</span><span class="sp"></span><button class="linkbtn" data-act="all-full">全部全天</button></div>`;
+        for (const w of list) {
+          const r = here.get(w.id);
+          const shift = r ? r.shift : '', ot = r ? Number(r.ot) || 0 : 0;
+          const other = dr.filter(x => x.workerId === w.id && x.siteId !== S.siteId);
+          const hint = other.length ? `<span class="hint">當天已登記：${other.map(x => esc(sName(x.siteId)) + (x.shift === 'half' ? '半天' : '全天')).join('、')}</span>` : '';
+          html += `<div class="wrow${shift ? ' on' : ''}">
+            <div class="wtop">
+              <div class="wname">${esc(w.name)}${hint}</div>
+              <div class="seg" role="group" aria-label="${esc(w.name)} 出勤">
+                <button data-w="${esc(w.id)}" data-shift="" aria-pressed="${!shift}">未到</button>
+                <button class="full" data-w="${esc(w.id)}" data-shift="full" aria-pressed="${shift==='full'}">全天</button>
+                <button class="half" data-w="${esc(w.id)}" data-shift="half" aria-pressed="${shift==='half'}">半天</button>
+              </div>
+            </div>
+            ${shift ? `<div class="ot"><span>加班時數</span><div class="stepper">
+              <button data-ot="-1" data-w="${esc(w.id)}" aria-label="減少加班" ${ot <= 0 ? 'disabled' : ''}>−</button>
+              <span class="v num${ot ? ' has' : ''}">${fmtN(ot)} h</span>
+              <button data-ot="1" data-w="${esc(w.id)}" aria-label="增加加班" ${ot >= 12 ? 'disabled' : ''}>＋</button>
+            </div></div>` : ''}
+          </div>`;
+        }
+        html += `</div>`;
+      }
+    }
+  }
+
+  if (dr.length) {
+    const g = new Map();
+    for (const r of dr) { if (!g.has(r.siteId)) g.set(r.siteId, []); g.get(r.siteId).push(r); }
+    const tot = dr.reduce((a, r) => a + shiftVal(r.shift), 0);
+    html += `<div class="row"><span class="label">當日出勤總覽</span><span class="sp"></span><span class="num" style="font-size:18px;font-weight:700">${fmtN(tot)}<small style="font-size:12px;color:var(--muted);font-family:var(--f-body)"> 工</small></span></div>
+    <div class="card daysum">${[...g].map(([sid, rs]) => {
+      const t = rs.reduce((a, r) => a + shiftVal(r.shift), 0);
+      rs.sort((a, b) => wName(a.workerId).localeCompare(wName(b.workerId), 'zh-Hant'));
+      return `<button class="grp" data-site="${esc(sid)}"><div class="grp-h"><b>${esc(sName(sid))}</b><span class="label">${rs.length} 人</span><span class="tot num">${fmtN(t)}<small>工</small></span></div>
+        <div class="names">${rs.map(r => `<span class="tag${r.shift === 'half' ? ' half' : ''}">${esc(wName(r.workerId))}${r.shift === 'half' ? ' ½' : ''}${Number(r.ot) ? `<i>+${fmtN(Number(r.ot))}h</i>` : ''}</span>`).join('')}</div></button>`;
+    }).join('')}
+    <div class="share"><button class="btn line" data-act="share">${LINE_ICON}把當日出勤傳到 LINE</button></div></div>`;
+  } else if (chipSites.length) {
+    html += `<p class="label" style="text-align:center;margin:4px 0">這一天還沒有任何出勤紀錄</p>`;
+  }
+  el.innerHTML = html;
+}
+
+/* ---------- render: workers ---------- */
+function renderWorkers(){
+  const el = $('#v-workers');
+  const ws = workers();
+  const act = ws.filter(w => w.status !== 'inactive'), off = ws.filter(w => w.status === 'inactive');
+  let html = `<div class="toolbar"><h2>出勤師傅</h2><span class="label">${act.length} 位在職</span><span class="sp"></span><button class="btn primary" data-act="add-worker">＋ 新增師傅</button></div>`;
+  if (!ws.length) html += `<div class="card empty"><b>還沒有師傅</b><span>新增師傅姓名後，就能在「出勤登記」點選出勤。</span></div>`;
+  else {
+    const item = w => `<button class="item${w.status === 'inactive' ? ' dim' : ''}" data-edit-worker="${esc(w.id)}">
+      <span class="avatar">${esc((w.name || '?').slice(0,1))}</span>
+      <span class="main"><span class="t">${esc(w.name)}</span>${w.phone ? `<span class="s num" style="font-size:15px">${esc(w.phone)}</span>` : ''}</span>
+      ${w.status === 'inactive' ? '<span class="pill off">停用</span>' : ''}${CHEV}</button>`;
+    html += `<div class="card list">${act.map(item).join('')}</div>`;
+    if (off.length) html += `<span class="label">已停用（不會出現在出勤登記）</span><div class="card list">${off.map(item).join('')}</div>`;
+  }
+  html += backupCard();
+  el.innerHTML = html;
+}
+function backupCard(){
+  const last = pref.lastBackup ? new Date(pref.lastBackup) : null;
+  return `<div class="card backup"><span class="label">資料備份</span>
+    <p>所有資料只存在這支手機的瀏覽器裡。換手機或清除瀏覽器資料前，請先下載備份檔，之後可以用備份檔還原。${last ? `上次備份：${last.getMonth()+1}/${last.getDate()}` : '尚未備份過。'}</p>
+    <div class="row"><button class="btn ghost" data-act="backup">下載備份檔</button><button class="btn ghost" data-act="restore">從備份檔還原</button></div></div>`;
+}
+
+/* ---------- render: sites ---------- */
+function renderSites(){
+  const el = $('#v-sites');
+  const f = S.siteFilter, all = sites();
+  const list = all.filter(s => f === 'all' ? true : f === 'done' ? s.status === 'done' : s.status !== 'done');
+  const nA = all.filter(s => s.status !== 'done').length, nD = all.length - nA;
+  let html = `<div class="toolbar"><h2>施工案場</h2><span class="sp"></span><button class="btn primary" data-act="add-site">＋ 新增案場</button></div>
+  <div class="seg" role="group" aria-label="篩選" style="align-self:flex-start">
+    <button data-sf="active" aria-pressed="${f==='active'}">施工中 ${nA}</button>
+    <button data-sf="done" aria-pressed="${f==='done'}">已完工 ${nD}</button>
+    <button data-sf="all" aria-pressed="${f==='all'}">全部</button>
+  </div>`;
+  if (!all.length) html += `<div class="card empty"><b>還沒有施工案場</b><span>新增案場名稱與地址，就能開始登記出勤。</span></div>`;
+  else if (!list.length) html += `<div class="card empty">這個分類目前沒有案場</div>`;
+  else html += `<div class="card list">${list.map(s => `<button class="item${s.status === 'done' ? ' dim' : ''}" data-edit-site="${esc(s.id)}">
+      <span class="main"><span class="t">${esc(s.name)}</span>${s.address ? `<span class="s">${esc(s.address)}</span>` : ''}</span>
+      <span class="pill ${s.status === 'done' ? 'off' : 'go'}">${s.status === 'done' ? '已完工' : '施工中'}</span>${CHEV}</button>`).join('')}</div>`;
+  el.innerHTML = html;
+}
+
+/* ---------- render: stats ---------- */
+function renderStats(){
+  const el = $('#v-stats');
+  const [y, m] = S.statMonth.split('-').map(Number);
+  const rs = recs().filter(r => r.date.slice(0,7) === S.statMonth);
+  const tot = rs.reduce((a, r) => a + shiftVal(r.shift), 0);
+  const ot = rs.reduce((a, r) => a + (Number(r.ot) || 0), 0);
+  const people = new Set(rs.map(r => r.workerId)).size;
+  let html = `<div class="card monthbar"><button class="iconbtn" id="m-prev" aria-label="上個月">${LEFT}</button><div class="m num">${y} 年 ${m} 月</div><button class="iconbtn" id="m-next" aria-label="下個月">${RIGHT}</button></div>
+  <div class="kpis">
+    <div class="card kpi"><span class="v num">${fmtN(tot)}<small>工</small></span><span class="k">總出勤工數</span></div>
+    <div class="card kpi"><span class="v num">${people}<small>人</small></span><span class="k">出勤師傅</span></div>
+    <div class="card kpi ot"><span class="v num">${fmtN(ot)}<small>h</small></span><span class="k">加班時數</span></div>
+  </div>
+  <div class="seg" role="group" aria-label="統計方式" style="align-self:flex-start">
+    <button data-sm="worker" aria-pressed="${S.statMode==='worker'}">依師傅</button>
+    <button data-sm="site" aria-pressed="${S.statMode==='site'}">依案場</button>
+  </div>`;
+  if (!rs.length) html += `<div class="card empty"><b>這個月還沒有出勤紀錄</b><span>在「出勤登記」點選後，這裡會自動統計天數與案場。</span></div>`;
+  else {
+    const isW = S.statMode === 'worker';
+    const key = isW ? 'workerId' : 'siteId', other = isW ? 'siteId' : 'workerId';
+    const nm = isW ? wName : sName, onm = isW ? sName : wName;
+    const groups = new Map();
+    for (const r of rs) {
+      if (!groups.has(r[key])) groups.set(r[key], { id: r[key], days: 0, full: 0, half: 0, ot: 0, recs: [], by: new Map() });
+      const g = groups.get(r[key]); const v = shiftVal(r.shift);
+      g.days += v; g.ot += Number(r.ot) || 0; if (r.shift === 'half') g.half++; else g.full++; g.recs.push(r);
+      if (!g.by.has(r[other])) g.by.set(r[other], { days: 0, ot: 0 });
+      const b = g.by.get(r[other]); b.days += v; b.ot += Number(r.ot) || 0;
+    }
+    const arr = [...groups.values()].sort((a, b) => b.days - a.days || nm(a.id).localeCompare(nm(b.id), 'zh-Hant'));
+    html += `<div class="card">${arr.map(g => {
+      const k = S.statMode + ':' + g.id;
+      const sub = isW ? `全天 ${g.full} 次 · 半天 ${g.half} 次${g.ot ? ` · 加班 ${fmtN(g.ot)}h` : ''}` : `${g.by.size} 位師傅 · ${g.recs.length} 人次${g.ot ? ` · 加班 ${fmtN(g.ot)}h` : ''}`;
+      const byArr = [...g.by].sort((a, b) => b[1].days - a[1].days);
+      const days = g.recs.slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+      return `<details class="st" data-key="${esc(k)}" ${S.openKeys.has(k) ? 'open' : ''}>
+        <summary><span class="main"><span class="t">${esc(nm(g.id))}</span><span class="s">${sub}</span></span>
+          <span class="big num">${fmtN(g.days)}<small>${isW ? '天' : '工'}</small></span>${CHEV}</summary>
+        <div class="sub">
+          <div style="overflow-x:auto"><table class="subtable"><thead><tr><th>${isW ? '案場' : '師傅'}</th><th class="r">${isW ? '天數' : '工數'}</th><th class="r">加班</th></tr></thead><tbody>
+          ${byArr.map(([id, b]) => `<tr><td>${esc(onm(id))}</td><td class="r num" style="font-size:17px;font-weight:600">${fmtN(b.days)}</td><td class="r num" style="font-size:17px">${b.ot ? fmtN(b.ot) + 'h' : '—'}</td></tr>`).join('')}
+          </tbody></table></div>
+          <div class="days" aria-label="出勤日期">${days.map(r => { const dd = parseYmd(r.date); return `<span class="dchip${r.shift === 'half' ? ' half' : ''}" title="${esc(onm(r[other]))}">${dd.getMonth()+1}/${dd.getDate()}${r.shift === 'half' ? '½' : ''}</span>`; }).join('')}</div>
+        </div></details>`;
+    }).join('')}</div>
+    <p class="label" style="margin:0;letter-spacing:.04em">全天 = 1 工，半天 = 0.5 工。日期藍色為全天、橘色為半天。</p>`;
+  }
+  el.innerHTML = html;
+}
+
+/* ---------- tabs ---------- */
+function renderTabs(){
+  for (const b of document.querySelectorAll('.tabs [data-tab]')) {
+    if (b.dataset.tab === S.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  }
+  for (const t of ['log','workers','sites','stats']) $('#v-' + t).hidden = t !== S.tab;
+}
+function renderAll(){ renderBanners(); renderTabs(); renderLog(); renderWorkers(); renderSites(); renderStats(); }
+
+/* ---------- mutations ---------- */
+function setShift(wid, shift){
+  const id = `${S.date}_${wid}_${S.siteId}`;
+  if (!shift) delete D.att[id];
+  else { const cur = D.att[id]; D.att[id] = { date: S.date, workerId: wid, siteId: S.siteId, shift, ot: cur ? cur.ot || 0 : 0 }; }
+  persist();
+}
+function setOt(wid, delta){
+  const r = D.att[`${S.date}_${wid}_${S.siteId}`]; if (!r) return;
+  r.ot = Math.max(0, Math.min(12, (Number(r.ot) || 0) + delta)); persist();
+}
+
+/* ---------- forms ---------- */
+function statusSeg(id, opts, cur){
+  return `<div class="fld"><span>狀態</span><div class="seg" id="${id}" style="align-self:flex-start">${opts.map(([v, l]) => `<button data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div></div>`;
+}
+function bindSeg(id, onPick){
+  const st = $('#' + id); if (!st) return;
+  st.onclick = e => { const b = e.target.closest('[data-v]'); if (!b) return; onPick(b.dataset.v); st.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); };
+}
+function workerForm(w){
+  let status = w ? (w.status || 'active') : 'active';
+  openSheet(`<h2>${w ? '編輯師傅' : '新增師傅'}</h2>
+    <label class="fld"><span>姓名</span><input id="f-name" maxlength="20" autocomplete="off" value="${esc(w ? w.name : '')}" placeholder="例如：王師傅"></label>
+    <label class="fld"><span>電話（選填）</span><input id="f-phone" type="tel" maxlength="20" autocomplete="off" value="${esc(w ? w.phone || '' : '')}"></label>
+    ${w ? statusSeg('f-status', [['active','在職'],['inactive','停用']], status) : ''}
+    <p class="err" id="f-err" hidden></p>
+    <div class="sheet-actions">${w ? '<button class="btn ghost danger" id="f-del">刪除</button>' : ''}<span class="sp"></span><button class="btn ghost" data-close>取消</button><button class="btn primary" id="f-ok">儲存</button></div>`);
+  bindSeg('f-status', v => status = v);
+  $('#f-ok').onclick = () => {
+    const name = $('#f-name').value.trim(), phone = $('#f-phone').value.trim(), err = $('#f-err');
+    if (!name) { err.textContent = '請輸入師傅姓名'; err.hidden = false; return; }
+    if (D.workers.some(x => x.name === name && (!w || x.id !== w.id))) { err.textContent = '已經有同名的師傅，請加上區別（例如：王師傅-水電）'; err.hidden = false; return; }
+    if (w) Object.assign(w, { name, phone, status });
+    else D.workers.push({ id: uid(), name, phone, status: 'active', createdAt: Date.now() });
+    persist(); closeSheet(); renderAll(); toast(w ? '已更新師傅資料' : `已新增 ${name}`);
+  };
+  if (w) $('#f-del').onclick = async () => {
+    const a = await ask(`刪除「${w.name}」？`, '過去的出勤紀錄會保留，但會顯示為「已刪除的師傅」。若只是不再出勤，建議改為「停用」。', [
+      { label: '取消', value: false }, { label: '確定刪除', value: true, cls: 'solid-danger' }]);
+    if (a) { D.workers = D.workers.filter(x => x.id !== w.id); persist(); renderAll(); toast('已刪除'); }
+  };
+}
+function siteForm(s, fromLog){
+  let status = s ? (s.status || 'active') : 'active';
+  openSheet(`<h2>${s ? '編輯案場' : '新增施工案場'}</h2>
+    <label class="fld"><span>案場名稱</span><input id="f-name" maxlength="40" autocomplete="off" value="${esc(s ? s.name : '')}" placeholder="例如：大安區林宅"></label>
+    <label class="fld"><span>地址（選填）</span><input id="f-addr" maxlength="80" autocomplete="off" value="${esc(s ? s.address || '' : '')}"></label>
+    ${s ? statusSeg('f-status', [['active','施工中'],['done','已完工']], status === 'done' ? 'done' : 'active') : ''}
+    <p class="err" id="f-err" hidden></p>
+    <div class="sheet-actions">${s ? '<button class="btn ghost danger" id="f-del">刪除</button>' : ''}<span class="sp"></span><button class="btn ghost" data-close>取消</button><button class="btn primary" id="f-ok">儲存</button></div>`);
+  bindSeg('f-status', v => status = v);
+  $('#f-ok').onclick = () => {
+    const name = $('#f-name').value.trim(), address = $('#f-addr').value.trim(), err = $('#f-err');
+    if (!name) { err.textContent = '請輸入案場名稱'; err.hidden = false; return; }
+    if (D.sites.some(x => x.name === name && (!s || x.id !== s.id))) { err.textContent = '已經有同名的案場'; err.hidden = false; return; }
+    if (s) Object.assign(s, { name, address, status });
+    else { const id = uid(); D.sites.push({ id, name, address, status: 'active', createdAt: Date.now() }); if (fromLog) { S.siteId = id; setPref('site', id); } }
+    persist(); closeSheet(); renderAll(); toast(s ? '已更新案場' : `已新增 ${name}`);
+  };
+  if (s) $('#f-del').onclick = async () => {
+    const a = await ask(`刪除「${s.name}」？`, '過去的出勤紀錄會保留，但會顯示為「已刪除的案場」。若已完工，建議改為「已完工」即可。', [
+      { label: '取消', value: false }, { label: '確定刪除', value: true, cls: 'solid-danger' }]);
+    if (a) { D.sites = D.sites.filter(x => x.id !== s.id); persist(); renderAll(); toast('已刪除'); }
+  };
+}
+
+/* ---------- backup ---------- */
+function doBackup(){
+  const blob = new Blob([JSON.stringify({ app: 'hd-attendance', version: 1, savedAt: new Date().toISOString(), data: D }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `師傅出勤備份_${today().replace(/-/g, '')}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  setPref('lastBackup', Date.now()); renderWorkers(); toast('已下載備份檔');
+}
+$('#restore-file').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  let obj;
+  try { obj = JSON.parse(await f.text()); } catch (x) { toast('這不是正確的備份檔'); return; }
+  const d = obj && obj.app === 'hd-attendance' ? obj.data : null;
+  if (!d || !Array.isArray(d.workers) || !Array.isArray(d.sites) || typeof d.att !== 'object') { toast('這不是正確的備份檔'); return; }
+  const n = Object.keys(d.att).length;
+  const ok = await ask('用備份檔還原？', `備份檔內有 ${d.workers.length} 位師傅、${d.sites.length} 個案場、${n} 筆出勤。還原後會取代這支手機目前的資料。`, [
+    { label: '取消', value: false }, { label: '確定還原', value: true, cls: 'primary' }]);
+  if (!ok) return;
+  D = { workers: d.workers, sites: d.sites, att: d.att }; persist(); renderAll(); toast('已還原資料');
+});
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  const t = e.target;
+  const tab = t.closest('.tabs [data-tab]');
+  if (tab) { S.tab = tab.dataset.tab; setPref('tab', S.tab); renderTabs(); window.scrollTo(0, 0); return; }
+  if (t.closest('#sheet')) return;
+  const act = t.closest('[data-act]');
+  if (act) {
+    const a = act.dataset.act;
+    if (a === 'add-site') siteForm(null, S.tab === 'log');
+    else if (a === 'add-worker') workerForm(null);
+    else if (a === 'share') shareSheet();
+    else if (a === 'backup') doBackup();
+    else if (a === 'restore') $('#restore-file').click();
+    else if (a === 'all-full') {
+      for (const w of D.workers) if (w.status !== 'inactive' && !D.att[`${S.date}_${w.id}_${S.siteId}`]) D.att[`${S.date}_${w.id}_${S.siteId}`] = { date: S.date, workerId: w.id, siteId: S.siteId, shift: 'full', ot: 0 };
+      persist(); renderAll();
+    }
+    return;
+  }
+  const site = t.closest('[data-site]');
+  if (site) { S.siteId = site.dataset.site; setPref('site', S.siteId); renderLog(); if (site.classList.contains('grp')) window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const sh = t.closest('[data-shift]');
+  if (sh) { setShift(sh.dataset.w, sh.dataset.shift); renderLog(); renderStats(); return; }
+  const ot = t.closest('[data-ot]');
+  if (ot && !ot.disabled) { setOt(ot.dataset.w, 0.5 * Number(ot.dataset.ot)); renderLog(); renderStats(); return; }
+  if (t.closest('#d-prev') || t.closest('#d-next') || t.closest('#d-today')) {
+    S.date = t.closest('#d-today') ? today() : addDays(S.date, t.closest('#d-prev') ? -1 : 1); renderLog(); return;
+  }
+  if (t.closest('#m-prev') || t.closest('#m-next')) { S.statMonth = addMonths(S.statMonth, t.closest('#m-prev') ? -1 : 1); renderStats(); return; }
+  const sm = t.closest('[data-sm]'); if (sm) { S.statMode = sm.dataset.sm; setPref('statMode', S.statMode); renderStats(); return; }
+  const sf = t.closest('[data-sf]'); if (sf) { S.siteFilter = sf.dataset.sf; setPref('siteFilter', S.siteFilter); renderSites(); return; }
+  const ew = t.closest('[data-edit-worker]'); if (ew) { workerForm(D.workers.find(w => w.id === ew.dataset.editWorker)); return; }
+  const es = t.closest('[data-edit-site]'); if (es) { siteForm(D.sites.find(s => s.id === es.dataset.editSite)); return; }
+});
+document.addEventListener('change', e => { if (e.target.id === 'd-input' && e.target.value) { S.date = e.target.value; renderLog(); } });
+document.addEventListener('toggle', e => {
+  const d = e.target; if (!(d instanceof HTMLDetailsElement) || !d.dataset.key) return;
+  if (d.open) S.openKeys.add(d.dataset.key); else S.openKeys.delete(d.dataset.key);
+}, true);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet();
+  if (e.key === 'Enter' && e.target.matches('.sheet input')) { const ok = $('#f-ok'); if (ok) ok.click(); }
+});
+// another tab of this app changed the data
+window.addEventListener('storage', e => { if (e.key === KEY) { D = load(); renderAll(); } });
+// date rolls over while the app stays open
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.lastDay && S.lastDay !== today() && S.date === S.lastDay) { S.date = today(); S.statMonth = today().slice(0,7); renderAll(); } S.lastDay = today(); });
+S.lastDay = today();
+
+renderAll();
+})();
+</script>
+</body>
+</html>
