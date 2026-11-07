@@ -98,6 +98,13 @@ button{cursor:pointer}
 .stepper button:disabled{opacity:.3}
 .stepper .v{min-width:56px;text-align:center;font-size:19px;font-weight:600;color:var(--ink)}
 .stepper .v.has{color:var(--amber)}
+.note{width:100%;border:1.5px solid var(--line);border-radius:10px;min-height:44px;padding:0 12px;background:var(--surface);font-size:16px}
+.note:focus{border-color:var(--accent);outline:none}
+.note::placeholder{color:var(--muted);opacity:.8}
+.daysum .tag{white-space:normal;overflow-wrap:anywhere}
+.tag em{font-style:normal;color:var(--muted)}
+.notes{display:flex;flex-direction:column;gap:4px;font-size:13px;margin:0;padding:0;list-style:none}
+.notes b{font-family:var(--f-num);font-size:14px;color:var(--muted);margin-right:6px}
 
 .daysum .grp{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px;width:100%;text-align:left;border-left:0;border-right:0;border-top:0;background:transparent}
 .daysum .grp:last-of-type{border-bottom:0}
@@ -302,7 +309,7 @@ function dayText(){
     const t = list.reduce((a, r) => a + shiftVal(r.shift), 0); tot += t;
     lines.push('', `■ ${sName(sid)}（${fmtN(t)} 工）`);
     list.sort((a, b) => wName(a.workerId).localeCompare(wName(b.workerId), 'zh-Hant'));
-    for (const r of list) { const o = Number(r.ot) || 0; ot += o; lines.push(`・${wName(r.workerId)} ${r.shift === 'half' ? '半天' : '全天'}${o ? ` 加班${fmtN(o)}h` : ''}`); }
+    for (const r of list) { const o = Number(r.ot) || 0; ot += o; lines.push(`・${wName(r.workerId)} ${r.shift === 'half' ? '半天' : '全天'}${o ? ` 加班${fmtN(o)}h` : ''}${r.note ? `（${r.note}）` : ''}`); }
   }
   lines.push('', `合計 ${fmtN(tot)} 工 / ${rs.length} 人次${ot ? ` / 加班 ${fmtN(ot)}h` : ''}`);
   return lines.join('\n');
@@ -377,7 +384,8 @@ function renderLog(){
               <button data-ot="-1" data-w="${esc(w.id)}" aria-label="減少加班" ${ot <= 0 ? 'disabled' : ''}>−</button>
               <span class="v num${ot ? ' has' : ''}">${fmtN(ot)} h</span>
               <button data-ot="1" data-w="${esc(w.id)}" aria-label="增加加班" ${ot >= 12 ? 'disabled' : ''}>＋</button>
-            </div></div>` : ''}
+            </div></div>
+            <input class="note" id="note-${esc(w.id)}" data-note="${esc(w.id)}" maxlength="60" autocomplete="off" enterkeyhint="done" aria-label="${esc(w.name)} 備註" placeholder="備註（例如：拆除、水電配管、提早下班）" value="${esc(r.note || '')}">` : ''}
           </div>`;
         }
         html += `</div>`;
@@ -385,6 +393,14 @@ function renderLog(){
     }
   }
 
+  html += '<div id="daysum-wrap" class="view"></div>';
+  el.innerHTML = html;
+  renderDaySum();
+}
+function renderDaySum(){
+  const wrap = $('#daysum-wrap'); if (!wrap) return;
+  const dr = dayRecs();
+  let html = '';
   if (dr.length) {
     const g = new Map();
     for (const r of dr) { if (!g.has(r.siteId)) g.set(r.siteId, []); g.get(r.siteId).push(r); }
@@ -394,13 +410,13 @@ function renderLog(){
       const t = rs.reduce((a, r) => a + shiftVal(r.shift), 0);
       rs.sort((a, b) => wName(a.workerId).localeCompare(wName(b.workerId), 'zh-Hant'));
       return `<button class="grp" data-site="${esc(sid)}"><div class="grp-h"><b>${esc(sName(sid))}</b><span class="label">${rs.length} 人</span><span class="tot num">${fmtN(t)}<small>工</small></span></div>
-        <div class="names">${rs.map(r => `<span class="tag${r.shift === 'half' ? ' half' : ''}">${esc(wName(r.workerId))}${r.shift === 'half' ? ' ½' : ''}${Number(r.ot) ? `<i>+${fmtN(Number(r.ot))}h</i>` : ''}</span>`).join('')}</div></button>`;
+        <div class="names">${rs.map(r => `<span class="tag${r.shift === 'half' ? ' half' : ''}">${esc(wName(r.workerId))}${r.shift === 'half' ? ' ½' : ''}${Number(r.ot) ? `<i>+${fmtN(Number(r.ot))}h</i>` : ''}${r.note ? `<em>：${esc(r.note)}</em>` : ''}</span>`).join('')}</div></button>`;
     }).join('')}
     <div class="share"><button class="btn line" data-act="share">${LINE_ICON}把當日出勤傳到 LINE</button></div></div>`;
-  } else if (chipSites.length) {
+  } else if (D.sites.length) {
     html += `<p class="label" style="text-align:center;margin:4px 0">這一天還沒有任何出勤紀錄</p>`;
   }
-  el.innerHTML = html;
+  wrap.innerHTML = html;
 }
 
 /* ---------- render: workers ---------- */
@@ -493,6 +509,7 @@ function renderStats(){
           ${byArr.map(([id, b]) => `<tr><td>${esc(onm(id))}</td><td class="r num" style="font-size:17px;font-weight:600">${fmtN(b.days)}</td><td class="r num" style="font-size:17px">${b.ot ? fmtN(b.ot) + 'h' : '—'}</td></tr>`).join('')}
           </tbody></table></div>
           <div class="days" aria-label="出勤日期">${days.map(r => { const dd = parseYmd(r.date); return `<span class="dchip${r.shift === 'half' ? ' half' : ''}" title="${esc(onm(r[other]))}">${dd.getMonth()+1}/${dd.getDate()}${r.shift === 'half' ? '½' : ''}</span>`; }).join('')}</div>
+          ${(() => { const ns = days.filter(r => r.note); return ns.length ? `<ul class="notes" aria-label="備註">${ns.map(r => { const dd = parseYmd(r.date); return `<li><b>${dd.getMonth()+1}/${dd.getDate()}</b>${esc(onm(r[other]))}：${esc(r.note)}</li>`; }).join('')}</ul>` : ''; })()}
         </div></details>`;
     }).join('')}</div>
     <p class="label" style="margin:0;letter-spacing:.04em">全天 = 1 工，半天 = 0.5 工。日期藍色為全天、橘色為半天。</p>`;
@@ -513,7 +530,7 @@ function renderAll(){ renderBanners(); renderTabs(); renderLog(); renderWorkers(
 function setShift(wid, shift){
   const id = `${S.date}_${wid}_${S.siteId}`;
   if (!shift) delete D.att[id];
-  else { const cur = D.att[id]; D.att[id] = { date: S.date, workerId: wid, siteId: S.siteId, shift, ot: cur ? cur.ot || 0 : 0 }; }
+  else { const cur = D.att[id]; D.att[id] = { date: S.date, workerId: wid, siteId: S.siteId, shift, ot: cur ? cur.ot || 0 : 0, note: cur ? cur.note || '' : '' }; }
   persist();
 }
 function setOt(wid, delta){
@@ -634,7 +651,22 @@ document.addEventListener('click', e => {
   const ew = t.closest('[data-edit-worker]'); if (ew) { workerForm(D.workers.find(w => w.id === ew.dataset.editWorker)); return; }
   const es = t.closest('[data-edit-site]'); if (es) { siteForm(D.sites.find(s => s.id === es.dataset.editSite)); return; }
 });
-document.addEventListener('change', e => { if (e.target.id === 'd-input' && e.target.value) { S.date = e.target.value; renderLog(); } });
+document.addEventListener('change', e => {
+  if (e.target.id === 'd-input' && e.target.value) { S.date = e.target.value; renderLog(); }
+  if (e.target.matches('[data-note]')) {
+    const r = D.att[`${S.date}_${e.target.dataset.note}_${S.siteId}`];
+    if (r) { r.note = e.target.value.trim(); clearTimeout(noteT); noteT = null; persist(); renderDaySum(); renderStats(); }
+  }
+});
+// note: save while typing (without re-rendering, so the keyboard stays open)
+let noteT;
+document.addEventListener('input', e => {
+  if (!e.target.matches('[data-note]')) return;
+  const r = D.att[`${S.date}_${e.target.dataset.note}_${S.siteId}`]; if (!r) return;
+  r.note = e.target.value; clearTimeout(noteT); noteT = setTimeout(() => { noteT = null; persist(); }, 400);
+});
+// flush a note that is still waiting to be saved when the app is closed
+window.addEventListener('pagehide', () => { if (noteT) { clearTimeout(noteT); noteT = null; persist(); } });
 document.addEventListener('toggle', e => {
   const d = e.target; if (!(d instanceof HTMLDetailsElement) || !d.dataset.key) return;
   if (d.open) S.openKeys.add(d.dataset.key); else S.openKeys.delete(d.dataset.key);
@@ -642,6 +674,7 @@ document.addEventListener('toggle', e => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet();
   if (e.key === 'Enter' && e.target.matches('.sheet input')) { const ok = $('#f-ok'); if (ok) ok.click(); }
+  if (e.key === 'Enter' && e.target.matches('.note')) e.target.blur();
 });
 // another tab of this app changed the data
 window.addEventListener('storage', e => { if (e.key === KEY) { D = load(); renderAll(); } });
